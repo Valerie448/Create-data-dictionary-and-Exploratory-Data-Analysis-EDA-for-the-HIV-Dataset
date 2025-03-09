@@ -1,0 +1,268 @@
+---
+title: "Create data dictionary and Exploratory Data Analysis (EDA) for the HIV Dataset"
+author: "Valerie Huanle Lin"
+output: html_document
+---
+
+
+```{r}
+#4.load the R packages required in the document and to set defaults for your document. 
+library(dplyr)
+library(dbplyr)
+library(readr)
+library(tidyverse)
+library(Hmisc)
+library(tsibbledata)
+library(tsibble)
+library(ggthemes)
+library(gganimate)
+library(gapminder)
+library(ggplot2)
+library(gganimate)
+library(gridExtra)
+library(rvest)
+library(tibble)
+library(janitor)
+library(scales)
+library(knitr)
+
+```
+
+```{r}
+#5.read web url
+
+url <- "https://figshare.com/ndownloader/files/35249488"
+download.file(url, "hiv_dataset.csv")
+data <- read.csv("hiv_dataset.csv")
+str(data)
+head(data)
+summary(data)
+
+```
+
+```{r}
+#6a) renaming columns so that the names do not include any spaces
+data <- clean_names(data)
+head(data)
+
+#6b)converting categorical columns to factors, with appropriate labels for each factor value.
+data$gender <- factor(data$gender, levels = 1:2, labels = c("Male", "Female"))
+data$ethnic <- factor(data$ethnic, levels = 1:4, labels = c("Asian", "Afro", "Caucasian", "Other"))
+data$base_drug_combo <- factor(data$base_drug_combo, levels = 0:5, labels = c("FTC + TDF", "3TC + ABC", "FTC + TAF", "DRV + FTC + TDF", "FTC + RTVB + TDF", "Other"))
+data$comp_ini <- factor(data$comp_ini, levels = 0:3, labels = c("DTG", "RAL", "EVG", "Not Applied"))
+data$comp_nnrti <- factor(data$comp_nnrti, levels = 0:3, labels = c("NVP", "EFV", "RPV", "Not Applied"))
+data$extra_pi <- factor(data$extra_pi, levels = 0:5, labels = c("DRV", "RTVB", "LPV", "RTV", "ATV", "Not Applied"))
+data$extra_pk_en <- factor(data$extra_pk_en, levels = 0:1, labels = c("False", "True"))
+data$vl_m <- factor(data$vl_m, levels = 0:1, labels = c("False", "True"))
+data$cd4_m <- factor(data$cd4_m, levels = 0:1, labels = c("False", "True"))
+data$drug_m <- factor(data$drug_m, levels = 0:1, labels = c("False", "True"))
+
+# View the converted data
+glimpse(data)
+```
+
+#7.create data dictionary and statement
+
+url <- "https://healthgym.ai/antiviral-hiv/"
+
+# Read the webpage and extract the table
+page <- read_html(url)
+table_nodes <- page %>% html_nodes("table")  
+table <- html_table(table_nodes[[1]], fill = TRUE, header = TRUE)  
+
+# Convert the table to a data frame
+df <- as.data.frame(table[, -1])
+
+
+# Add a new column "description" to the data dictionary 
+df$description <- c("Viral load measurement",
+                  "Absolute CD4 count measurement",
+                  "Relative CD4 count measurement",
+                  "Gender of the patient",
+                  "Ethnicity of the patient",
+                  "Base drug combination used for treatment",
+                  "Initial component of the treatment regimen",
+                  "Non-nucleoside reverse transcriptase inhibitor component of the treatment regimen",
+                  "Whether an extra protease inhibitor was included in the treatment regimen (True/False)",
+                  "Whether an extra pharmacokinetic enhancer was included in the treatment regimen (True/False)",
+                  "Whether viral load measurement was taken (True/False)",
+                  "Whether CD4 count measurement was taken (True/False)",
+                  "Whether drug measurement was taken (True/False)"
+  )
+
+
+# Display the data dictionary as a Markdown table
+cat("Data Dictionary:\n")
+knitr::kable(df, format = "markdown")
+
+
+# Get the number of rows
+num_rows <- nrow(table)
+
+# Print the data dictionary
+cat("\nNumber of Rows is:", num_rows, "\n")
+
+```{r}
+# Check for zero or negative values
+any(data$vl <= 0, data$cd4 <= 0, data$rel_cd4 <=0)  # Check if any values are zero or negative
+
+# Log-transform the variable
+data$log_vl <- log(data$vl)
+data$log_cd4 <- log(data$cd4)
+data$log_rel_cd4 <- log(data$rel_cd4)
+
+# Check the transformed variable
+head(data[, c("log_vl", "log_cd4", "log_rel_cd4")])
+
+# Histogram for log_vl
+ggplot(data, aes(x = log_vl)) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 30) +
+  labs(x = "Log VL", y = "Count", title = "Histogram of Log VL") +
+  theme_minimal()
+```
+
+```{r}
+
+# Histogram for log_cd4
+ggplot(data, aes(x = log_cd4)) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 30) +
+  labs(x = "Log CD4", y = "Count", title = "Histogram of Log CD4") +
+  theme_minimal()
+
+```
+
+```{r}
+# Histogram for log_rel_cd4
+ggplot(data, aes(x = log_rel_cd4)) +
+  geom_histogram(fill = "lightblue", color = "black", bins = 30) +
+  labs(x = "Log Rel CD4", y = "Count", title = "Histogram of Log Rel CD4") +
+  theme_minimal()
+```
+
+
+```{r}
+# Plot the bar chart with gender counts
+  ggplot(data, aes(x = gender)) +
+  geom_bar(fill = "lightblue") +
+  labs(x = "Gender", y = "Count", title = "Distribution of Gender") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for Ethnic with counts
+ggplot(data, aes(x = ethnic)) +
+  geom_bar(fill = "lightgreen") +
+  labs(x = "Ethnicity", y = "Count", title = "Distribution of Ethnicity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for Base Drug Combo with counts
+ggplot(data, aes(x = base_drug_combo)) +
+  geom_bar(fill = "lightyellow") +
+  labs(x = "Base Drug Combo", y = "Count", title = "Distribution of Base Drug Combo") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for Comp. INI with counts
+ggplot(data, aes(x = comp_ini)) +
+  geom_bar(fill = "lightpink") +
+  labs(x = "Comp. INI", y = "Count", title = "Distribution of Comp. INI") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for Comp. NNRTI with counts
+ggplot(data, aes(x = comp_nnrti)) +
+  geom_bar(fill = "orange") +
+  labs(x = "Comp. NNRTI", y = "Count", title = "Distribution of Comp. NNRTI") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for Extra pk-En with counts
+ggplot(data, aes(x = extra_pk_en)) +
+  geom_bar(fill = "lightgray") +
+  labs(x = "Extra pk-En", y = "Count", title = "Distribution of Extra pk-En") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+
+```{r}
+# Bar chart for VL (M) with counts
+ggplot(data, aes(x = vl_m)) +
+  geom_bar(fill = "lightcyan") +
+  labs(x = "VL (M)", y = "Count", title = "Distribution of VL (M)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+# Bar chart for CD4(M) with counts
+ggplot(data, aes(x = cd4_m)) +
+  geom_bar(fill = "lightblue") +
+  labs(x = "CD4(M)", y = "Count", title = "Distribution of CD4(M)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+
+```{r}
+# Bar chart for Drug Recorded (Drug (M)) with counts
+ggplot(data, aes(x = drug_m)) +
+  geom_bar(fill = "lightblue") +
+  labs(x = "Drug Recorded (Drug (M))", y = "Count", title = "Distribution of Drug Recorded (Drug (M))") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  geom_text(stat = "count", aes(label = ..count..), vjust = -0.5)
+```
+
+```{r}
+#line plot for timepoints
+ggplot(data, aes(x = timepoints)) +
+  geom_freqpoly() +
+  labs(x = "Timepoints", y = "Count") +
+  ggtitle("Timepoints Diagram")
+
+```
+ 
+ 
+```{r}  
+# Grouped Bar Chart: Base Drug Combo by Gender 
+ggplot(data, aes(x = factor(gender), fill = factor(base_drug_combo))) +
+  geom_bar(position = "fill") +
+  labs(x = "Gender", y = "Proportion", fill = "Base Drug Combo") +
+  theme_minimal()
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+  geom_text(aes(label = scales::percent(..count../sum(..count..))), 
+            position = position_fill(vjust = 0.5))
+```
+
+```{r}  
+
+#Relationship between VL and CD4
+ggplot(data, aes(x = vl, y = cd4)) +
+  geom_point(color = "steelblue", size = 3, alpha = 0.7) +
+  labs(x = "VL (Viral Load)", y = "CD4 Count") +
+  ggtitle("Relationship between VL and CD4") +
+  theme_minimal()
+
+
+```
+
+
